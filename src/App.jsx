@@ -1,6 +1,4 @@
-
-
-import { useState, useRef, useEffect } from "react"; import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { db } from "./firebase";
 import {
   collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, doc, updateDoc, deleteDoc
@@ -1234,7 +1232,7 @@ function EmergencyPage() {
   const send = async () => {
     if (!form.detail.trim()) return;
     await addDoc(collection(db, "emergency"), {
-      ...form,
+
       date: new Date().toLocaleString("ja-JP"),
       sender: "現在のユーザー",
       createdAt: serverTimestamp(),
