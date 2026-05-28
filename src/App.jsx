@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./firebase";
 import {
-  collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, doc, updateDoc, deleteDoc
+  collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, doc, updateDoc
 } from "firebase/firestore";
 
 const COLORS = {
@@ -14,8 +14,6 @@ const inputStyle = {
   width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`,
   fontSize: 14, marginBottom: 10, background: "#fff", color: COLORS.text, outline: "none", fontFamily: "sans-serif",
 };
-
-const MEMBERS = ["山田太郎", "鈴木花子", "田中一郎", "佐藤明子"];
 
 function Badge({ text, color }) {
   return <span style={{ background: color, color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>{text}</span>;
@@ -32,6 +30,7 @@ function NoticesPage() {
   const [notices, setNotices] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ title: "", body: "", urgent: false });
 
   useEffect(() => {
@@ -48,6 +47,8 @@ function NoticesPage() {
     });
     setForm({ title: "", body: "", urgent: false });
     setShowForm(false);
+    setSent(true);
+    setTimeout(() => setSent(false), 3000);
   };
 
   if (selected) return (
@@ -67,6 +68,7 @@ function NoticesPage() {
         <h2 style={{ fontSize: 18, color: COLORS.primary, fontWeight: 700 }}>📋 お知らせ掲示板</h2>
         <Btn small onClick={() => setShowForm(!showForm)}>＋ 投稿</Btn>
       </div>
+      {sent && <div style={{ background: COLORS.primary, color: "#fff", borderRadius: 8, padding: "8px 14px", marginBottom: 10, fontSize: 13 }}>✓ 投稿しました！</div>}
       {showForm && <Card style={{ background: COLORS.primaryPale }}>
         <input placeholder="タイトル" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} style={inputStyle} />
         <textarea placeholder="内容" value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
@@ -77,91 +79,6 @@ function NoticesPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 5 }}>{n.urgent && <Badge text="緊急" color={COLORS.danger} />}<span style={{ fontSize: 12, color: COLORS.textMuted }}>{n.date}</span></div>
         <p style={{ fontWeight: 700 }}>{n.title}</p>
       </Card>)}
-    </div>
-  );
-}
-
-// ─── 会議管理 ────────────────────────────────────────────
-function MeetingsPage() {
-  const [meetings, setMeetings] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [myName, setMyName] = useState(MEMBERS[0]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", date: "", time: "", place: "", agenda: "" });
-
-  useEffect(() => {
-    const q = query(collection(db, "meetings"), orderBy("createdAt", "desc"));
-    return onSnapshot(q, snap => setMeetings(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, []);
-
-  const respond = async (id, ans) => {
-    const m = meetings.find(x => x.id === id);
-    await updateDoc(doc(db, "meetings", id), { responses: { ...(m.responses || {}), [myName]: ans } });
-  };
-
-  const add = async () => {
-    if (!form.title || !form.date) return;
-    await addDoc(collection(db, "meetings"), { ...form, responses: {}, createdAt: serverTimestamp() });
-    setForm({ title: "", date: "", time: "", place: "", agenda: "" });
-    setShowForm(false);
-  };
-
-  if (selected) {
-    const m = meetings.find(x => x.id === selected) || {};
-    const counts = Object.values(m.responses || {}).reduce((a, v) => ({ ...a, [v]: (a[v] || 0) + 1 }), {});
-    return (
-      <div>
-        <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: COLORS.primary, fontWeight: 700, cursor: "pointer", marginBottom: 12, fontSize: 14 }}>← 一覧に戻る</button>
-        <Card>
-          <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{m.title}</h3>
-          <div style={{ fontSize: 14, lineHeight: 2, marginBottom: 12 }}>
-            <div>📅 {m.date} {m.time}</div><div>📍 {m.place || "未定"}</div><div>📌 {m.agenda || "—"}</div>
-          </div>
-          <div style={{ background: COLORS.bg, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-            <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>出欠状況</p>
-            <div style={{ display: "flex", gap: 14, marginBottom: 8, fontSize: 13 }}>
-              {["参加", "欠席", "未回答"].map(k => <span key={k}><b style={{ color: k === "参加" ? COLORS.primary : k === "欠席" ? COLORS.danger : COLORS.textMuted }}>{counts[k] || 0}</b> {k}</span>)}
-            </div>
-            {Object.entries(m.responses || {}).map(([name, ans]) => <div key={name} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", borderBottom: `1px solid ${COLORS.border}` }}><span>{name}</span><Badge text={ans} color={ans === "参加" ? COLORS.primary : ans === "欠席" ? COLORS.danger : COLORS.textMuted} /></div>)}
-          </div>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>あなたの出欠（{myName}）</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn small onClick={() => respond(m.id, "参加")} color={(m.responses || {})[myName] === "参加" ? COLORS.primary : "#aaa"}>✓ 参加</Btn>
-            <Btn small onClick={() => respond(m.id, "欠席")} color={(m.responses || {})[myName] === "欠席" ? COLORS.danger : "#aaa"}>✗ 欠席</Btn>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <h2 style={{ fontSize: 18, color: COLORS.primary, fontWeight: 700 }}>📅 会議・行事管理</h2>
-        <Btn small onClick={() => setShowForm(!showForm)}>＋ 追加</Btn>
-      </div>
-      <div style={{ background: COLORS.accentLight, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-        ユーザー：<select value={myName} onChange={e => setMyName(e.target.value)} style={{ border: "none", background: "transparent", fontWeight: 700, cursor: "pointer" }}>{MEMBERS.map(n => <option key={n}>{n}</option>)}</select>
-      </div>
-      {showForm && <Card style={{ background: COLORS.primaryPale }}>
-        <input placeholder="タイトル" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} style={inputStyle} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
-          <input type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} style={inputStyle} />
-        </div>
-        <input placeholder="場所" value={form.place} onChange={e => setForm({ ...form, place: e.target.value })} style={inputStyle} />
-        <input placeholder="議題" value={form.agenda} onChange={e => setForm({ ...form, agenda: e.target.value })} style={inputStyle} />
-        <div style={{ display: "flex", gap: 8 }}><Btn small onClick={add}>追加</Btn><Btn small outline onClick={() => setShowForm(false)}>キャンセル</Btn></div>
-      </Card>}
-      {meetings.map(m => {
-        const ans = (m.responses || {})[myName];
-        return <Card key={m.id} onClick={() => setSelected(m.id)} style={{ cursor: "pointer" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div><p style={{ fontWeight: 700, marginBottom: 4 }}>{m.title}</p><p style={{ fontSize: 13, color: COLORS.textMuted }}>📅 {m.date} {m.time}　📍 {m.place || "場所未定"}</p></div>
-            <Badge text={ans || "未回答"} color={ans === "参加" ? COLORS.primary : ans === "欠席" ? COLORS.danger : COLORS.textMuted} />
-          </div>
-        </Card>;
-      })}
     </div>
   );
 }
@@ -201,6 +118,7 @@ function ReportsPage() {
         <h2 style={{ fontSize: 18, color: COLORS.primary, fontWeight: 700 }}>📝 活動報告</h2>
         <Btn small onClick={() => setShowForm(!showForm)}>＋ 報告</Btn>
       </div>
+      {sent && <div style={{ background: COLORS.primary, color: "#fff", borderRadius: 8, padding: "8px 14px", marginBottom: 10, fontSize: 13 }}>✓ 投稿しました！</div>}
       {showForm && <Card style={{ background: COLORS.primaryPale }}>
         <input placeholder="タイトル" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} style={inputStyle} />
         <input placeholder="投稿者名" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} style={inputStyle} />
@@ -218,62 +136,6 @@ function ReportsPage() {
         <p style={{ fontSize: 14, lineHeight: 1.7 }}>{r.content}</p>
         {r.image && <img src={r.image} style={{ marginTop: 10, maxWidth: "100%", borderRadius: 8 }} />}
       </Card>)}
-    </div>
-  );
-}
-
-// ─── チャット ────────────────────────────────────────────
-function ChatPage() {
-  const [chats, setChats] = useState([]);
-  const [myName, setMyName] = useState(MEMBERS[0]);
-  const [text, setText] = useState("");
-  const bottomRef = useRef();
-
-  useEffect(() => {
-    const q = query(collection(db, "chats"), orderBy("createdAt", "asc"));
-    return onSnapshot(q, snap => setChats(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, []);
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chats]);
-
-  const send = async () => {
-    if (!text.trim()) return;
-    const now = new Date();
-    await addDoc(collection(db, "chats"), {
-      user: myName,
-      text: text.trim(),
-      time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`,
-      createdAt: serverTimestamp(),
-    });
-    setText("");
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <h2 style={{ fontSize: 18, color: COLORS.primary, fontWeight: 700, marginBottom: 10 }}>💬 メンバーチャット</h2>
-      <div style={{ background: COLORS.accentLight, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-        送信者：<select value={myName} onChange={e => setMyName(e.target.value)} style={{ border: "none", background: "transparent", fontWeight: 700, cursor: "pointer" }}>{MEMBERS.map(n => <option key={n}>{n}</option>)}</select>
-      </div>
-      <div style={{ overflowY: "auto", maxHeight: 340, marginBottom: 12, paddingRight: 4 }}>
-        {chats.map(c => {
-          const isMe = c.user === myName;
-          return (
-            <div key={c.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: 12, alignItems: "flex-end" }}>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: isMe ? COLORS.primary : COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{(c.user || "?")[0]}</div>
-              <div style={{ maxWidth: "70%" }}>
-                {!isMe && <p style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 2 }}>{c.user}</p>}
-                <div style={{ background: isMe ? COLORS.primary : "#fff", color: isMe ? "#fff" : COLORS.text, borderRadius: isMe ? "14px 4px 14px 14px" : "4px 14px 14px 14px", padding: "10px 14px", fontSize: 14, border: isMe ? "none" : `1px solid ${COLORS.border}` }}>{c.text}</div>
-                <p style={{ fontSize: 11, color: COLORS.textMuted, textAlign: isMe ? "right" : "left", marginTop: 2 }}>{c.time}</p>
-              </div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="メッセージを入力…" style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
-        <Btn onClick={send}>送信</Btn>
-      </div>
     </div>
   );
 }
@@ -352,66 +214,16 @@ function InquiryPage() {
   );
 }
 
-// ─── 緊急連絡 ────────────────────────────────────────────
-function EmergencyPage() {
-  const [form, setForm] = useState({ type: "安否確認", detail: "" });
-  const [sent, setSent] = useState(false);
-  const [history, setHistory] = useState([]);
-  const TYPES = ["安否確認", "緊急招集", "災害情報", "その他"];
-
-  useEffect(() => {
-    const q = query(collection(db, "emergency"), orderBy("createdAt", "desc"));
-    return onSnapshot(q, snap => setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, []);
-
-  const send = async () => {
-    if (!form.detail.trim()) return;
-    await addDoc(collection(db, "emergency"), {
-      ...form,
-      date: new Date().toLocaleString("ja-JP"),
-      sender: "現在のユーザー",
-      createdAt: serverTimestamp(),
-    });
-    setSent(true);
-    setForm({ type: "安否確認", detail: "" });
-    setTimeout(() => setSent(false), 4000);
-  };
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 18, color: COLORS.danger, fontWeight: 700, marginBottom: 14 }}>🚨 緊急連絡</h2>
-      <Card style={{ background: COLORS.dangerLight, border: `2px solid ${COLORS.danger}` }}>
-        {sent && <div style={{ background: COLORS.danger, color: "#fff", borderRadius: 8, padding: "8px 14px", marginBottom: 10, fontSize: 13 }}>✓ 全メンバーに送信しました。</div>}
-        <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>種別を選択</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-          {TYPES.map(t => <button key={t} onClick={() => setForm({ ...form, type: t })} style={{ padding: "6px 14px", borderRadius: 20, border: `2px solid ${form.type === t ? COLORS.danger : COLORS.border}`, background: form.type === t ? COLORS.danger : "#fff", color: form.type === t ? "#fff" : COLORS.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t}</button>)}
-        </div>
-        <textarea placeholder="緊急連絡の内容…" value={form.detail} onChange={e => setForm({ ...form, detail: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-        <Btn onClick={send} color={COLORS.danger}>🚨 全員に送信</Btn>
-      </Card>
-      <p style={{ fontWeight: 700, fontSize: 15, color: COLORS.primary, marginBottom: 10 }}>送信履歴</p>
-      {history.map(h => <Card key={h.id} style={{ borderLeft: `4px solid ${COLORS.danger}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><Badge text={h.type} color={COLORS.danger} /><span style={{ fontSize: 12, color: COLORS.textMuted }}>{h.date}</span></div>
-        <p style={{ fontSize: 14, lineHeight: 1.6 }}>{h.detail}</p>
-        <p style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 4 }}>送信者：{h.sender}</p>
-      </Card>)}
-    </div>
-  );
-}
-
 // ─── メインApp ───────────────────────────────────────────
 const TABS = [
   { id: "notices", label: "お知らせ", icon: "📋" },
-  { id: "meetings", label: "会議管理", icon: "📅" },
   { id: "reports", label: "活動報告", icon: "📝" },
-  { id: "chat", label: "チャット", icon: "💬" },
   { id: "inquiry", label: "問い合わせ", icon: "✉️" },
-  { id: "emergency", label: "緊急連絡", icon: "🚨" },
 ];
 
 export default function App() {
   const [tab, setTab] = useState("notices");
-  const pages = { notices: <NoticesPage />, meetings: <MeetingsPage />, reports: <ReportsPage />, chat: <ChatPage />, inquiry: <InquiryPage />, emergency: <EmergencyPage /> };
+  const pages = { notices: <NoticesPage />, reports: <ReportsPage />, inquiry: <InquiryPage /> };
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "sans-serif", background: COLORS.bg }}>
       <div style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryLight})`, padding: "16px 20px 12px", color: "#fff" }}>
@@ -419,7 +231,7 @@ export default function App() {
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>🌿 福祉会 連絡アプリ</h1>
       </div>
       <div style={{ background: "#fff", borderBottom: `2px solid ${COLORS.border}`, display: "flex", overflowX: "auto", flexShrink: 0 }}>
-        {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: "0 0 auto", padding: "8px 12px", border: "none", background: "none", cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${t.id === "emergency" ? COLORS.danger : COLORS.primary}` : "3px solid transparent", color: tab === t.id ? (t.id === "emergency" ? COLORS.danger : COLORS.primary) : COLORS.textMuted, fontWeight: tab === t.id ? 700 : 400, fontSize: 11, whiteSpace: "nowrap" }}>
+        {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: "0 0 auto", padding: "8px 12px", border: "none", background: "none", cursor: "pointer", borderBottom: tab === t.id ? `3px solid ${COLORS.primary}` : "3px solid transparent", color: tab === t.id ? COLORS.primary : COLORS.textMuted, fontWeight: tab === t.id ? 700 : 400, fontSize: 11, whiteSpace: "nowrap" }}>
           <div style={{ fontSize: 16 }}>{t.icon}</div><div>{t.label}</div>
         </button>)}
       </div>
@@ -427,4 +239,5 @@ export default function App() {
         {pages[tab]}
       </div>
     </div>
-  );
+  );
+}
