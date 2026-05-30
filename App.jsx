@@ -98,7 +98,9 @@ function ReportsPage() {
   const [showForm, setShowForm] = useState(false);
   const [sent, setSent] = useState(false);
   const [form, setForm] = useState({ title: "", author: "", content: "" });
-  const [img, setImg] = useState(null);
+  const [file, setFile] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [fileType, setFileType] = useState("");
   const fileRef = useRef();
 
   useEffect(() => {
@@ -106,16 +108,30 @@ function ReportsPage() {
     return onSnapshot(q, snap => setReports(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, []);
 
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setFileName(f.name);
+    setFileType(f.type);
+    const r = new FileReader();
+    r.onload = ev => setFile(ev.target.result);
+    r.readAsDataURL(f);
+  };
+
   const post = async () => {
     if (!form.title.trim()) return;
     await addDoc(collection(db, "reports"), {
       ...form,
       date: new Date().toISOString().slice(0, 10),
-      image: img || null,
+      file: file || null,
+      fileName: fileName || null,
+      fileType: fileType || null,
       createdAt: serverTimestamp(),
     });
     setForm({ title: "", author: "", content: "" });
-    setImg(null);
+    setFile(null);
+    setFileName("");
+    setFileType("");
     setShowForm(false);
     setSent(true);
     setTimeout(() => setSent(false), 3000);
@@ -139,11 +155,18 @@ function ReportsPage() {
         <input placeholder="投稿者名" value={form.author} onChange={e => setForm({ ...form, author: e.target.value })} style={inputStyle} />
         <textarea placeholder="報告内容" value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
         <div style={{ marginBottom: 10 }}>
-          <input type="file" ref={fileRef} onChange={e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = ev => setImg(ev.target.result); r.readAsDataURL(f); } }} accept="image/*" style={{ display: "none" }} />
-          <Btn small outline onClick={() => fileRef.current.click()}>📎 写真を追加</Btn>
-          {img && <img src={img} style={{ display: "block", maxWidth: "100%", maxHeight: 160, marginTop: 8, borderRadius: 8 }} />}
+          <input type="file" ref={fileRef} onChange={handleFile} accept="image/*,application/pdf" style={{ display: "none" }} />
+          <Btn small outline onClick={() => fileRef.current.click()}>📎 写真・PDFを追加</Btn>
+          {file && fileType === "application/pdf" && (
+            <div style={{ marginTop: 8, padding: "8px 12px", background: "#fff", borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+              📄 {fileName}
+            </div>
+          )}
+          {file && fileType !== "application/pdf" && (
+            <img src={file} style={{ display: "block", maxWidth: "100%", maxHeight: 160, marginTop: 8, borderRadius: 8 }} />
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}><Btn small onClick={post}>投稿</Btn><Btn small outline onClick={() => { setShowForm(false); setImg(null); }}>キャンセル</Btn></div>
+        <div style={{ display: "flex", gap: 8 }}><Btn small onClick={post}>投稿</Btn><Btn small outline onClick={() => { setShowForm(false); setFile(null); setFileName(""); }}>キャンセル</Btn></div>
       </Card>}
       {reports.map(r => <Card key={r.id}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, alignItems: "flex-start" }}>
@@ -155,7 +178,15 @@ function ReportsPage() {
         </div>
         <p style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 8 }}>投稿者：{r.author}</p>
         <p style={{ fontSize: 14, lineHeight: 1.7 }}>{r.content}</p>
-        {r.image && <img src={r.image} style={{ marginTop: 10, maxWidth: "100%", borderRadius: 8 }} />}
+        {r.file && r.fileType === "application/pdf" && (
+          <a href={r.file} download={r.fileName} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "8px 14px", background: COLORS.primaryPale, borderRadius: 8, color: COLORS.primary, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            📄 {r.fileName}（ダウンロード）
+          </a>
+        )}
+        {r.file && r.fileType !== "application/pdf" && (
+          <img src={r.file} style={{ marginTop: 10, maxWidth: "100%", borderRadius: 8 }} />
+        )}
+        {r.image && !r.file && <img src={r.image} style={{ marginTop: 10, maxWidth: "100%", borderRadius: 8 }} />}
       </Card>)}
     </div>
   );
