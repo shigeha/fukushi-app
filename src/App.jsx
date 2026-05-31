@@ -15,7 +15,7 @@ const inputStyle = {
   fontSize: 14, marginBottom: 10, background: "#fff", color: COLORS.text, outline: "none", fontFamily: "sans-serif",
 };
 
-const MEMBERS = ["山田太郎", "鈴木花子", "田中一郎", "佐藤明子"];
+const MEMBERS = ["竹林茂晴", "木村徹也", "羽多野文子", "嶋田欣之助", "佐藤タエ", "橋本信子", "中山文子", "藤本富勝", "上野智子", "山本一樹", "早川裕二", "杉本萬樹", "江島敏文", "山本武幸"];
 
 function Badge({ text, color }) {
   return <span style={{ background: color, color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>{text}</span>;
