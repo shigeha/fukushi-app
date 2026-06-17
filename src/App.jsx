@@ -409,7 +409,7 @@ const TABS = [
   { id: "inquiry", label: "問い合わせ", icon: "✉️" },
 ];
 
-{
+export default function App() {
   const [tab, setTab] = useState("notices");
   const pages = {
     notices: <NoticesPage />,
@@ -433,4 +433,5 @@ const TABS = [
       </div>
     </div>
   );
+
 }
