@@ -334,7 +334,7 @@ function InquiryPage() {
   const [inquiries, setInquiries] = useState([]);
   const [form, setForm] = useState({ name: "", subject: "", message: "" });
   const [sent, setSent] = useState(false);
-
+  const [loading, setLoading] = useState(null);
 
   useEffect(() => {
     const q = query(collection(db, "inquiries"), orderBy("createdAt", "desc"));
@@ -360,7 +360,25 @@ function InquiryPage() {
     await deleteDoc(doc(db, "inquiries", id));
   };
 
-
+  const genAI = async (inq) => {
+    setLoading(inq.id);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+          messages: [{ role: "user", content: `あなたは町の福祉会の担当者です。以下のお問い合わせに丁寧な日本語で200文字以内の回答文を作成してください。\n件名：${inq.subject}\n内容：${inq.message}` }]
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || "生成できませんでした。";
+      await updateDoc(doc(db, "inquiries", inq.id), { aiReply: reply, status: "回答済" });
+    } catch {
+      await updateDoc(doc(db, "inquiries", inq.id), { aiReply: "エラーが発生しました。" });
+    }
+    setLoading(null);
+  };
 
   return (
     <div>
@@ -383,19 +401,11 @@ function InquiryPage() {
           </div>
         </div>
         <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 10 }}>{inq.message}</p>
-        <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.primary, marginBottom: 6 }}>回答文：</p>
-          <textarea
-            placeholder="回答を入力してください"
-            defaultValue={inq.aiReply || ""}
-            onBlur={async (e) => {
-              await updateDoc(doc(db, "inquiries", inq.id), { aiReply: e.target.value, status: "回答済" });
-            }}
-            rows={3}
-            style={{ ...inputStyle, resize: "vertical" }}
-          />
-          <p style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>入力後、フォーカスを外すと自動保存されます</p>
-        </div>
+        <Btn small onClick={() => genAI(inq)}>{loading === inq.id ? "生成中…" : "🤖 AI回答文を生成"}</Btn>
+        {inq.aiReply && <div style={{ marginTop: 10, background: COLORS.bg, borderRadius: 8, padding: 12, border: `1px solid ${COLORS.border}` }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: COLORS.primary, marginBottom: 6 }}>AI生成回答文：</p>
+          <p style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{inq.aiReply}</p>
+        </div>}
       </Card>)}
     </div>
   );
@@ -409,7 +419,7 @@ const TABS = [
   { id: "inquiry", label: "問い合わせ", icon: "✉️" },
 ];
 
-{
+export default function App() {
   const [tab, setTab] = useState("notices");
   const pages = {
     notices: <NoticesPage />,
